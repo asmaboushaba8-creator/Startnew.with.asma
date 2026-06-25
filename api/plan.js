@@ -1,9 +1,13 @@
-export default async function handler(req, res) {
+export const config = {
+  runtime: 'edge',
+};
+
+export default async function handler(req) {
   if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
+    return new Response(JSON.stringify({ error: "Method not allowed" }), { status: 405 });
   }
 
-  const { age, goal, problem, details } = req.body;
+  const { age, goal, problem, details } = await req.json();
 
   const systemPrompt = `You are a personal coach. Respond ONLY with a valid JSON object. No markdown, no explanation. Use short Arabic sentences only. Never use quotes or apostrophes inside JSON values.`;
 
@@ -31,16 +35,20 @@ Return ONLY this exact JSON:
     const data = await response.json();
     const raw = (data.content || []).map((b) => b.text || "").join("");
     const match = raw.match(/\{[\s\S]*\}/);
-    if (!match) return res.status(500).json({ error: "فشل التوليد" });
+    if (!match) return new Response(JSON.stringify({ error: "فشل التوليد" }), { status: 500 });
 
     let str = match[0].replace(/[\x00-\x1F\x7F]/g, " ");
     try {
-      return res.status(200).json(JSON.parse(str));
+      JSON.parse(str);
     } catch {
       str = str.replace(/,\s*([}\]])/g, "$1");
-      return res.status(200).json(JSON.parse(str));
     }
+
+    return new Response(str, {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
   } catch (e) {
-    return res.status(500).json({ error: e.message });
+    return new Response(JSON.stringify({ error: e.message }), { status: 500 });
   }
 }
